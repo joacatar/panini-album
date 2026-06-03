@@ -1,0 +1,542 @@
+[
+  {
+    "number": 1,
+    "name": "Lámina 1",
+    "section": "Intro",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 2,
+    "name": "Lámina 2",
+    "section": "Intro",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 3,
+    "name": "Lámina 3",
+    "section": "Intro",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 4,
+    "name": "Lámina 4",
+    "section": "Intro",
+    "sticker_type": "special"
+  },
+  {
+    "number": 5,
+    "name": "Lámina 5",
+    "section": "Intro",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 6,
+    "name": "Lámina 6",
+    "section": "Intro",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 7,
+    "name": "Lámina 7",
+    "section": "Intro",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 8,
+    "name": "Lámina 8",
+    "section": "Intro",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 9,
+    "name": "Lámina 9",
+    "section": "Intro",
+    "sticker_type": "special"
+  },
+  {
+    "number": 10,
+    "name": "Lámina 10",
+    "section": "Intro",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 11,
+    "name": "Lámina 11",
+    "section": "Estadios",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 12,
+    "name": "Lámina 12",
+    "section": "Estadios",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 13,
+    "name": "Lámina 13",
+    "section": "Estadios",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 14,
+    "name": "Lámina 14",
+    "section": "Estadios",
+    "sticker_type": "special"
+  },
+  {
+    "number": 15,
+    "name": "Lámina 15",
+    "section": "Estadios",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 16,
+    "name": "Lámina 16",
+    "section": "Estadios",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 17,
+    "name": "Lámina 17",
+    "section": "Estadios",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 18,
+    "name": "Lámina 18",
+    "section": "Estadios",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 19,
+    "name": "Lámina 19",
+    "section": "Mascotas",
+    "sticker_type": "special"
+  },
+  {
+    "number": 20,
+    "name": "Lámina 20",
+    "section": "Mascotas",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 21,
+    "name": "Lámina 21",
+    "section": "Mascotas",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 22,
+    "name": "Lámina 22",
+    "section": "Mascotas",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 23,
+    "name": "Lámina 23",
+    "section": "Mascotas",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 24,
+    "name": "Lámina 24",
+    "section": "Mascotas",
+    "sticker_type": "special"
+  },
+  {
+    "number": 25,
+    "name": "Lámina 25",
+    "section": "Equipos Grupo A",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 26,
+    "name": "Lámina 26",
+    "section": "Equipos Grupo A",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 27,
+    "name": "Lámina 27",
+    "section": "Equipos Grupo A",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 28,
+    "name": "Lámina 28",
+    "section": "Equipos Grupo A",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 29,
+    "name": "Lámina 29",
+    "section": "Equipos Grupo A",
+    "sticker_type": "special"
+  },
+  {
+    "number": 30,
+    "name": "Lámina 30",
+    "section": "Equipos Grupo A",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 31,
+    "name": "Lámina 31",
+    "section": "Equipos Grupo A",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 32,
+    "name": "Lámina 32",
+    "section": "Equipos Grupo A",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 33,
+    "name": "Lámina 33",
+    "section": "Equipos Grupo A",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 34,
+    "name": "Lámina 34",
+    "section": "Equipos Grupo A",
+    "sticker_type": "special"
+  },
+  {
+    "number": 35,
+    "name": "Lámina 35",
+    "section": "Equipos Grupo A",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 36,
+    "name": "Lámina 36",
+    "section": "Equipos Grupo A",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 37,
+    "name": "Lámina 37",
+    "section": "Equipos Grupo B",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 38,
+    "name": "Lámina 38",
+    "section": "Equipos Grupo B",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 39,
+    "name": "Lámina 39",
+    "section": "Equipos Grupo B",
+    "sticker_type": "special"
+  },
+  {
+    "number": 40,
+    "name": "Lámina 40",
+    "section": "Equipos Grupo B",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 41,
+    "name": "Lámina 41",
+    "section": "Equipos Grupo B",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 42,
+    "name": "Lámina 42",
+    "section": "Equipos Grupo B",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 43,
+    "name": "Lámina 43",
+    "section": "Equipos Grupo B",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 44,
+    "name": "Lámina 44",
+    "section": "Equipos Grupo B",
+    "sticker_type": "special"
+  },
+  {
+    "number": 45,
+    "name": "Lámina 45",
+    "section": "Equipos Grupo B",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 46,
+    "name": "Lámina 46",
+    "section": "Equipos Grupo B",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 47,
+    "name": "Lámina 47",
+    "section": "Equipos Grupo B",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 48,
+    "name": "Lámina 48",
+    "section": "Equipos Grupo B",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 49,
+    "name": "Lámina 49",
+    "section": "Equipos Grupo C",
+    "sticker_type": "special"
+  },
+  {
+    "number": 50,
+    "name": "Lámina 50",
+    "section": "Equipos Grupo C",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 51,
+    "name": "Lámina 51",
+    "section": "Equipos Grupo C",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 52,
+    "name": "Lámina 52",
+    "section": "Equipos Grupo C",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 53,
+    "name": "Lámina 53",
+    "section": "Equipos Grupo C",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 54,
+    "name": "Lámina 54",
+    "section": "Equipos Grupo C",
+    "sticker_type": "special"
+  },
+  {
+    "number": 55,
+    "name": "Lámina 55",
+    "section": "Equipos Grupo C",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 56,
+    "name": "Lámina 56",
+    "section": "Equipos Grupo C",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 57,
+    "name": "Lámina 57",
+    "section": "Equipos Grupo C",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 58,
+    "name": "Lámina 58",
+    "section": "Equipos Grupo C",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 59,
+    "name": "Lámina 59",
+    "section": "Equipos Grupo C",
+    "sticker_type": "special"
+  },
+  {
+    "number": 60,
+    "name": "Lámina 60",
+    "section": "Equipos Grupo C",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 61,
+    "name": "Lámina 61",
+    "section": "Equipos Grupo D",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 62,
+    "name": "Lámina 62",
+    "section": "Equipos Grupo D",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 63,
+    "name": "Lámina 63",
+    "section": "Equipos Grupo D",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 64,
+    "name": "Lámina 64",
+    "section": "Equipos Grupo D",
+    "sticker_type": "special"
+  },
+  {
+    "number": 65,
+    "name": "Lámina 65",
+    "section": "Equipos Grupo D",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 66,
+    "name": "Lámina 66",
+    "section": "Equipos Grupo D",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 67,
+    "name": "Lámina 67",
+    "section": "Equipos Grupo D",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 68,
+    "name": "Lámina 68",
+    "section": "Equipos Grupo D",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 69,
+    "name": "Lámina 69",
+    "section": "Equipos Grupo D",
+    "sticker_type": "special"
+  },
+  {
+    "number": 70,
+    "name": "Lámina 70",
+    "section": "Equipos Grupo D",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 71,
+    "name": "Lámina 71",
+    "section": "Equipos Grupo D",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 72,
+    "name": "Lámina 72",
+    "section": "Equipos Grupo D",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 73,
+    "name": "Lámina 73",
+    "section": "Leyendas",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 74,
+    "name": "Lámina 74",
+    "section": "Leyendas",
+    "sticker_type": "special"
+  },
+  {
+    "number": 75,
+    "name": "Lámina 75",
+    "section": "Leyendas",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 76,
+    "name": "Lámina 76",
+    "section": "Leyendas",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 77,
+    "name": "Lámina 77",
+    "section": "Leyendas",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 78,
+    "name": "Lámina 78",
+    "section": "Leyendas",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 79,
+    "name": "Lámina 79",
+    "section": "Leyendas",
+    "sticker_type": "special"
+  },
+  {
+    "number": 80,
+    "name": "Lámina 80",
+    "section": "Leyendas",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 81,
+    "name": "Lámina 81",
+    "section": "Leyendas",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 82,
+    "name": "Lámina 82",
+    "section": "Leyendas",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 83,
+    "name": "Lámina 83",
+    "section": "Finales",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 84,
+    "name": "Lámina 84",
+    "section": "Finales",
+    "sticker_type": "special"
+  },
+  {
+    "number": 85,
+    "name": "Lámina 85",
+    "section": "Finales",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 86,
+    "name": "Lámina 86",
+    "section": "Finales",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 87,
+    "name": "Lámina 87",
+    "section": "Finales",
+    "sticker_type": "shiny"
+  },
+  {
+    "number": 88,
+    "name": "Lámina 88",
+    "section": "Finales",
+    "sticker_type": "normal"
+  },
+  {
+    "number": 89,
+    "name": "Lámina 89",
+    "section": "Finales",
+    "sticker_type": "special"
+  },
+  {
+    "number": 90,
+    "name": "Lámina 90",
+    "section": "Finales",
+    "sticker_type": "normal"
+  }
+]

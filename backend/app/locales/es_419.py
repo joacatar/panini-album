@@ -1,0 +1,7 @@
+MSG_LOGIN_REQUIRED = "Debes iniciar sesión para continuar."
+MSG_PROFILE_INCOMPLETE = "Completa tu ubicación antes de intercambiar."
+MSG_TRADE_NOT_FOUND = "Solicitud de intercambio no encontrada."
+MSG_TRADE_FORBIDDEN = "No tienes permiso sobre este intercambio."
+MSG_REVIEW_ONLY_COMPLETED = "Solo puedes reseñar intercambios completados."
+MSG_REVIEW_ALREADY = "Ya dejaste una reseña para este intercambio."
+MSG_REVIEW_NOT_PARTICIPANT = "No participaste en este intercambio."
