@@ -355,11 +355,8 @@ async function viewExplore() {
     });
     $app.querySelectorAll(".btn-trade").forEach((b) => {
       b.onclick = async () => {
-        if (!state.user?.email_confirmed_at && !state.user?.identities?.length) {
-          const session = await getSession();
-          if (!session?.user?.email_confirmed_at) {
-            return alert("Verifica tu correo antes de proponer intercambios.");
-          }
+        if (!state.user?.email_confirmed_at) {
+          return alert("Verifica tu correo antes de proponer intercambios.");
         }
         const offer = JSON.parse(b.dataset.offer);
         const want = JSON.parse(b.dataset.want);
