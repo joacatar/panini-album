@@ -1,5 +1,5 @@
 # Supabase local CLI (opcional). Ver: https://supabase.com/docs/guides/cli
-project_id = "panini-intercambios"
+project_id = "htpfymxjfsvyvskfirjq"
 
 [api]
 enabled = true
