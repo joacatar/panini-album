@@ -3802,6 +3802,17 @@ details[open] > .flash-breakdown-toggle::before {
   line-height: 1.3;
 }
 
+.boot-recovery-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.boot-recovery-actions .btn {
+  width: 100%;
+}
+
 .header-aside {
   display: flex;
   align-items: center;

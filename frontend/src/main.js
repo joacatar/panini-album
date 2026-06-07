@@ -61,7 +61,9 @@ import {
   updateUserPassword,
 } from "./lib/auth.js";
 import {
+  COLLECTION_STORAGE_KEY,
   loadLocalCollection,
+  loadLocalCollectionSafe,
   saveLocalCollection,
   sanitizeLocalCollection,
   syncCollectionToRemote,
@@ -122,7 +124,10 @@ const AUTH_ROUTES = new Set([
 
 const $app = document.getElementById("app");
 let bootComplete = false;
+let appPainted = false;
 let renderInFlight = null;
+let renderPending = false;
+let collectionRecoveryNotice = null;
 
 function showBootError(message) {
   if (!$app) return;
@@ -132,24 +137,51 @@ function showBootError(message) {
       <main class="app-main">
         <div class="card" style="padding:1rem">
           <p class="msg error">${shellEscapeHtml(message)}</p>
-          <p style="margin-top:1rem;font-size:0.85rem;color:var(--muted)">
-            Prueba: recargar · borrar datos del sitio ·
-            <a href="#" id="boot-clear-auth">cerrar sesión local</a>
+          <p style="margin-top:1rem;font-size:0.85rem;color:var(--muted);line-height:1.45">
+            Si en incógnito sí abre, casi siempre es caché vieja del navegador o datos locales dañados en este teléfono.
           </p>
+          <div class="boot-recovery-actions">
+            <button type="button" class="btn btn-primary" id="boot-reload">Recargar</button>
+            <button type="button" class="btn btn-secondary" id="boot-clear-collection">Borrar solo álbum local</button>
+            <button type="button" class="btn btn-ghost" id="boot-clear-auth">Borrar todo y cerrar sesión</button>
+          </div>
         </div>
       </main>
     </div>`;
+  document.getElementById("boot-reload")?.addEventListener("click", () => location.reload());
+  document.getElementById("boot-clear-collection")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    try {
+      localStorage.removeItem(COLLECTION_STORAGE_KEY);
+      sessionStorage.removeItem("albumTeamIndex");
+      sessionStorage.removeItem("albumSubPage");
+    } catch {
+      /* ignore */
+    }
+    location.reload();
+  });
   document.getElementById("boot-clear-auth")?.addEventListener("click", async (e) => {
     e.preventDefault();
     try {
       await supabase?.auth.signOut();
       localStorage.clear();
       sessionStorage.clear();
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
       location.href = "/";
     } catch {
       location.reload();
     }
   });
+}
+
+function hydrateLocalCollection(validIds = null) {
+  const { raw, error } = loadLocalCollectionSafe();
+  if (error) collectionRecoveryNotice = error;
+  state.collection = sanitizeLocalCollection(raw, validIds);
+  return state.collection;
 }
 
 function withTimeout(promise, ms, label) {
@@ -318,10 +350,11 @@ async function mergeCollectionOnLogin() {
   loginMergePromise = (async () => {
     const validIds = state.stickers.length ? new Set(state.stickers.map((s) => s.id)) : null;
     const local = sanitizeLocalCollection(loadLocalCollection(), validIds);
-    const { data, error } = await supabase
-      .from("user_stickers")
-      .select("sticker_id, owned, duplicates")
-      .eq("user_id", state.user.id);
+    const { data, error } = await withTimeout(
+      supabase.from("user_stickers").select("sticker_id, owned, duplicates").eq("user_id", state.user.id),
+      15000,
+      "Sincronizar álbum"
+    );
 
     if (error) {
       console.warn("mergeCollectionOnLogin:", error.message);
@@ -408,6 +441,7 @@ function countMyMegas() {
 }
 
 function shell(title, sub, body, showNav = true) {
+  appPainted = true;
   const st = stats();
   const pct = state.stickers.length && st.total ? Math.round((st.owned / st.total) * 100) : 0;
   const showProgress = showNav && state.stickers.length > 0 && !["flash", "import", "scan"].includes(state.route);
@@ -3383,8 +3417,16 @@ async function viewUserPublic() {
 }
 
 async function render() {
-  if (renderInFlight) return renderInFlight;
-  renderInFlight = renderNow().finally(() => {
+  if (renderInFlight) {
+    renderPending = true;
+    return renderInFlight;
+  }
+  renderInFlight = (async () => {
+    do {
+      renderPending = false;
+      await renderNow();
+    } while (renderPending);
+  })().finally(() => {
     renderInFlight = null;
   });
   return renderInFlight;
@@ -3432,7 +3474,11 @@ async function renderNow() {
   if (AUTH_ROUTES.has(state.route)) {
     if (!state.user) {
       state.returnAfterAuth = state.route;
-      navigate("cuenta");
+      state.route = "cuenta";
+      if (location.hash !== "#cuenta") {
+        history.replaceState(null, "", `${location.pathname}${location.search}#cuenta`);
+      }
+      viewCuenta();
       return;
     }
   }
@@ -3520,18 +3566,27 @@ async function init() {
   });
 
   if (supabase) {
-    const { error, justCompleted } = await completeAuthFromUrl();
-    authJustCompleted = justCompleted;
-    if (error) setAuthFlash("error", `No se pudo iniciar sesión: ${error}`);
-    else if (justCompleted) {
-      setAuthFlash("success", "¡Listo! Combinando tu álbum de este dispositivo con tu cuenta…");
+    try {
+      const { error, justCompleted } = await withTimeout(
+        completeAuthFromUrl(),
+        12000,
+        "Confirmar sesión"
+      );
+      authJustCompleted = justCompleted;
+      if (error) setAuthFlash("error", `No se pudo iniciar sesión: ${error}`);
+      else if (justCompleted) {
+        setAuthFlash("success", "¡Listo! Combinando tu álbum de este dispositivo con tu cuenta…");
+      }
+    } catch (err) {
+      console.warn("completeAuthFromUrl:", err.message);
+      setAuthFlash("error", "El enlace de acceso tardó demasiado. Entra de nuevo desde Cuenta.");
     }
   }
 
   await loadUser();
   await loadStickers();
   const validIds = state.stickers.length ? new Set(state.stickers.map((s) => s.id)) : null;
-  state.collection = sanitizeLocalCollection(loadLocalCollection(), validIds);
+  hydrateLocalCollection(validIds);
   bootComplete = true;
   const h = parseHash();
   if (typeof h === "object") {
@@ -3553,7 +3608,26 @@ async function init() {
   if (savedMode === "edit") state.albumMode = "edit";
   else state.albumMode = "view";
   state.albumTeamsMissingOnly = sessionStorage.getItem("albumTeamsMissingOnly") === "1";
-  await render();
+  try {
+    await Promise.race([
+      render(),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("La app tardó demasiado en abrir")), 25000);
+      }),
+    ]);
+  } catch (err) {
+    console.error("init render:", err);
+    if (!appPainted) {
+      showBootError(
+        `${err.message}. Tu álbum sigue guardado en el navegador salvo que elijas borrarlo abajo.`
+      );
+      return;
+    }
+  }
+  if (collectionRecoveryNotice) {
+    setAuthFlash("info", collectionRecoveryNotice);
+    collectionRecoveryNotice = null;
+  }
   loadCollection(true)
     .then(() => render())
     .catch((e) => console.warn("collection sync:", e.message));
