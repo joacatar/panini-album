@@ -25,7 +25,11 @@ def _service_role_key_invalid() -> Optional[str]:
 
 
 def _jwt_secret_invalid() -> Optional[str]:
-    return _placeholder_secret(settings.supabase_jwt_secret, "SUPABASE_JWT_SECRET")
+    """Opcional — ya no se usa para validar tokens (Supabase Auth lo hace)."""
+    key = (settings.supabase_jwt_secret or "").strip()
+    if not key:
+        return None
+    return _placeholder_secret(key, "SUPABASE_JWT_SECRET")
 
 
 @lru_cache

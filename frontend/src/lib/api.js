@@ -1,8 +1,9 @@
 import { getAccessToken } from "./supabase.js";
 
 function resolveApiUrl() {
-  const configured = import.meta.env.VITE_API_URL || "http://localhost:8000";
-  if (!import.meta.env.DEV || typeof window === "undefined") return configured;
+  const env = import.meta.env ?? {};
+  const configured = env.VITE_API_URL || "http://localhost:8000";
+  if (!env.DEV || typeof window === "undefined") return configured;
   try {
     const parsed = new URL(configured);
     const configuredIsLocal =

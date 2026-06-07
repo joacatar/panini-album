@@ -1,0 +1,30 @@
+{
+  "album_order": [
+    "MEX", "KOR", "RSA", "CZE",
+    "CAN", "SUI", "QAT", "BIH",
+    "BRA", "MAR", "SCO", "HAI",
+    "USA", "PAR", "AUS", "TUR",
+    "GER", "ECU", "CIV", "CUW",
+    "NED", "JPN", "TUN", "SWE",
+    "BEL", "IRN", "EGY", "NZL",
+    "ESP", "URU", "KSA", "CPV",
+    "FRA", "SEN", "NOR", "IRQ",
+    "ARG", "AUT", "ALG", "JOR",
+    "POR", "COL", "UZB", "COD",
+    "ENG", "CRO", "PAN", "GHA"
+  ],
+  "groups": {
+    "A": ["MEX", "KOR", "RSA", "CZE"],
+    "B": ["CAN", "SUI", "QAT", "BIH"],
+    "C": ["BRA", "MAR", "SCO", "HAI"],
+    "D": ["USA", "PAR", "AUS", "TUR"],
+    "E": ["GER", "ECU", "CIV", "CUW"],
+    "F": ["NED", "JPN", "TUN", "SWE"],
+    "G": ["BEL", "IRN", "EGY", "NZL"],
+    "H": ["ESP", "URU", "KSA", "CPV"],
+    "I": ["FRA", "SEN", "NOR", "IRQ"],
+    "J": ["ARG", "AUT", "ALG", "JOR"],
+    "K": ["POR", "COL", "UZB", "COD"],
+    "L": ["ENG", "CRO", "PAN", "GHA"]
+  }
+}

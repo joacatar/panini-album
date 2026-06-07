@@ -1,0 +1,14 @@
+[
+  { "slot": 1, "name": "Lamine Yamal", "nation": "ESP" },
+  { "slot": 2, "name": "Joshua Kimmich", "nation": "GER" },
+  { "slot": 3, "name": "Virgil van Dijk", "nation": "NED" },
+  { "slot": 4, "name": "Antonee Robinson", "nation": "USA" },
+  { "slot": 5, "name": "Alphonso Davies", "nation": "CAN" },
+  { "slot": 6, "name": "Lautaro Martínez", "nation": "ARG" },
+  { "slot": 7, "name": "Harry Kane", "nation": "ENG" },
+  { "slot": 8, "name": "Edson Álvarez", "nation": "MEX" },
+  { "slot": 9, "name": "Weston McKennie", "nation": "USA" },
+  { "slot": 10, "name": "Jefferson Lerma", "nation": "COL" },
+  { "slot": 11, "name": "Santiago Giménez", "nation": "MEX" },
+  { "slot": 12, "name": "Gabriel Magalhães", "nation": "BRA" }
+]

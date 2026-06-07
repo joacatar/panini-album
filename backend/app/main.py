@@ -33,15 +33,14 @@ app.include_router(reviews.router)
 @app.get("/health")
 def health() -> dict:
     service_err = _service_role_key_invalid()
-    jwt_err = _jwt_secret_invalid()
-    errors = [e for e in (service_err, jwt_err) if e]
+    errors = [e for e in (service_err,) if e]
     return {
         "status": "ok" if not errors else "degraded",
         "locale": "es-419",
         "supabase": {
             "url_configured": bool(settings.supabase_url),
             "service_role_configured": not service_err,
-            "jwt_secret_configured": not jwt_err,
+            "auth_via_supabase": True,
             "errors": errors,
         },
     }

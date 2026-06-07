@@ -3847,6 +3847,30 @@ details[open] > .flash-breakdown-toggle::before {
   margin-bottom: 0.5rem;
 }
 
+.auth-mode-bar {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+}
+
+.auth-mode-btn {
+  flex: 1;
+  padding: 0.5rem 0.35rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.auth-mode-btn.active {
+  background: var(--accent);
+  color: #052010;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
 .auth-card label {
   display: block;
   margin-top: 0.65rem;

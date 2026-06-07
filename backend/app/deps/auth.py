@@ -5,11 +5,42 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
 
-from app.config import settings
+from app.deps.supabase import _service_role_key_invalid, get_admin_client
 
 security = HTTPBearer(auto_error=False)
+
+
+def _service_config_error() -> None:
+    err = _service_role_key_invalid()
+    if err:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"{err} Reinicia el backend después de actualizar .env.",
+        )
+
+
+def _verify_access_token(token: str) -> tuple[UUID, dict]:
+    """Valida el JWT del usuario contra Supabase Auth (solo necesitas service_role)."""
+    _service_config_error()
+    admin = get_admin_client()
+    try:
+        resp = admin.auth.get_user(jwt=token)
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Token inválido.") from exc
+    if not resp or not resp.user:
+        raise HTTPException(status_code=401, detail="Token inválido.")
+
+    user = resp.user
+    payload = {
+        "sub": user.id,
+        "email": user.email,
+        "email_verified": bool(getattr(user, "email_confirmed_at", None)),
+    }
+    try:
+        return UUID(user.id), payload
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Token inválido.") from exc
 
 
 def get_current_user_id(
@@ -20,25 +51,8 @@ def get_current_user_id(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Debes iniciar sesión para continuar.",
         )
-    if not settings.supabase_jwt_secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="API sin configurar (SUPABASE_JWT_SECRET).",
-        )
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(
-            token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
-        sub = payload.get("sub")
-        if not sub:
-            raise HTTPException(status_code=401, detail="Token inválido.")
-        return UUID(sub)
-    except (JWTError, ValueError) as exc:
-        raise HTTPException(status_code=401, detail="Token inválido.") from exc
+    user_id, _ = _verify_access_token(credentials.credentials)
+    return user_id
 
 
 CurrentUserId = Annotated[UUID, Depends(get_current_user_id)]
@@ -52,20 +66,8 @@ def get_current_user_payload(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Debes iniciar sesión para continuar.",
         )
-    if not settings.supabase_jwt_secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="API sin configurar (SUPABASE_JWT_SECRET).",
-        )
-    try:
-        return jwt.decode(
-            credentials.credentials,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
-    except JWTError as exc:
-        raise HTTPException(status_code=401, detail="Token inválido.") from exc
+    _, payload = _verify_access_token(credentials.credentials)
+    return payload
 
 
 def require_verified_email(payload: dict) -> None:

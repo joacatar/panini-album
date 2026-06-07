@@ -95,26 +95,35 @@ Si luego entras con Google o correo, la app **fusiona** lo local con tu cuenta e
 
 ## Despliegue
 
-| Componente | Dónde | URL |
-|------------|-------|-----|
-| Base de datos + Auth | **Supabase** (ya en la nube) | `https://TU_PROYECTO.supabase.co` |
-| Frontend PWA | **Vercel** o Netlify | Sí, te dan link `*.vercel.app` |
-| API Python | **Cloud Run**, Railway o Render | Sí, cada uno da URL pública |
+| Componente | Dónde |
+|------------|-------|
+| Base de datos + Auth | **Supabase** (ya en la nube) |
+| Frontend PWA | **Vercel** (`frontend/vercel.json` incluido) |
+| API Python | **Railway**, Render o Cloud Run (`backend/Dockerfile`) |
 
-**Vercel no ejecuta Python/FastAPI.** Necesitas dos servicios:
+**Vercel no ejecuta Python/FastAPI** — son dos deploys separados.
 
-1. **Frontend** → Vercel  
-   - Root: `frontend`  
-   - Build: `npm run build`  
-   - Output: `dist`  
-   - Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL=https://TU-API.run.app`
+### Checklist
 
-2. **Backend** → Google Cloud Run (o Railway)  
-   - Dockerfile/uvicorn en `backend`  
-   - Env: `SUPABASE_*`, `CORS_ORIGINS=https://tu-app.vercel.app`  
-   - Cloud Run te da una URL tipo `https://panini-api-xxxxx.run.app`
+1. **Git** — sube el repo a GitHub (sin `.env`, `.idea/`, `node_modules/`, `supabase/seed/batches/`; ver `.gitignore`).
 
-3. **Supabase Auth** → añade la URL de Vercel en Redirect URLs del dashboard.
+2. **Supabase** — aplica migraciones pendientes (`supabase db push` o SQL Editor). En **Authentication → URL Configuration**:
+   - Site URL: `https://tu-app.vercel.app`
+   - Redirect URLs: `https://tu-app.vercel.app`, `http://localhost:5173`
+
+3. **Backend** (Railway / Render / Cloud Run):
+   - Root del servicio: carpeta `backend`
+   - Build: Dockerfile incluido
+   - Variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `CORS_ORIGINS=https://tu-app.vercel.app`
+   - **No** pongas `DEV_AUTH_SECRET` en producción (solo desarrollo local)
+
+4. **Frontend** (Vercel):
+   - Importa el repo; **Root Directory** = `frontend`
+   - Build/output ya vienen en `vercel.json`
+   - Variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL=https://tu-api.railway.app` (URL del paso 3)
+   - **No** pongas `VITE_DEV_AUTH_SECRET` en producción
+
+5. Vuelve a Supabase y confirma que la URL de Vercel está en Redirect URLs.
 
 Usa HTTPS en producción (obligatorio para PWA y OAuth).
 

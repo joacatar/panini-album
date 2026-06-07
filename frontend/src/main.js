@@ -57,12 +57,14 @@ import {
   rememberAuthReturnRoute,
   setAuthFlash,
   signInWithEmailPassword,
-  signUpWithEmailPassword,
+  updateUserPassword,
 } from "./lib/auth.js";
 import {
   loadLocalCollection,
   saveLocalCollection,
+  sanitizeLocalCollection,
   syncCollectionToRemote,
+  syncLocalToRemote,
 } from "./lib/collection.js";
 import {
   clearFlashSession,
@@ -100,6 +102,9 @@ import {
 } from "./lib/collectionCopies.js";
 
 let activeScanCleanup = null;
+let collectionLoadPromise = null;
+let loginMergePromise = null;
+let loginMergedForUserId = null;
 
 const SHOW_STICKER_NAMES = false;
 
@@ -115,6 +120,45 @@ const AUTH_ROUTES = new Set([
 ]);
 
 const $app = document.getElementById("app");
+let bootComplete = false;
+let renderInFlight = null;
+
+function showBootError(message) {
+  if (!$app) return;
+  $app.innerHTML = `
+    <div class="app-shell">
+      <header class="app-header"><h1>Panini Intercambios</h1></header>
+      <main class="app-main">
+        <div class="card" style="padding:1rem">
+          <p class="msg error">${shellEscapeHtml(message)}</p>
+          <p style="margin-top:1rem;font-size:0.85rem;color:var(--muted)">
+            Prueba: recargar · borrar datos del sitio ·
+            <a href="#" id="boot-clear-auth">cerrar sesión local</a>
+          </p>
+        </div>
+      </main>
+    </div>`;
+  document.getElementById("boot-clear-auth")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    try {
+      await supabase?.auth.signOut();
+      localStorage.clear();
+      sessionStorage.clear();
+      location.href = "/";
+    } catch {
+      location.reload();
+    }
+  });
+}
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} tardó demasiado (${ms / 1000}s)`)), ms);
+    }),
+  ]);
+}
 let state = {
   user: null,
   profile: null,
@@ -146,29 +190,44 @@ function parseHash() {
 
 async function loadUser() {
   if (!supabase) return;
-  const session = await getSession();
-  state.user = session?.user ?? null;
+  try {
+    const session = await withTimeout(getSession(), 8000, "Sesión");
+    state.user = session?.user ?? null;
+  } catch (err) {
+    console.warn("loadUser:", err.message);
+    state.user = null;
+    state.profile = null;
+    return;
+  }
   if (!state.user) {
     state.profile = null;
     return;
   }
 
-  let { data } = await supabase.from("profiles").select("*").eq("id", state.user.id).maybeSingle();
-  if (!data) {
-    const displayName =
-      state.user.user_metadata?.full_name ||
-      state.user.user_metadata?.name ||
-      state.user.email?.split("@")[0] ||
-      "Coleccionista";
-    const ensured = await supabase
-      .from("profiles")
-      .upsert({ id: state.user.id, display_name: displayName })
-      .select()
-      .maybeSingle();
-    data = ensured.data;
-    if (ensured.error) console.warn("profile ensure:", ensured.error.message);
+  try {
+    let { data } = await withTimeout(
+      supabase.from("profiles").select("*").eq("id", state.user.id).maybeSingle(),
+      8000,
+      "Perfil"
+    );
+    if (!data) {
+      const displayName =
+        state.user.user_metadata?.full_name ||
+        state.user.user_metadata?.name ||
+        state.user.email?.split("@")[0] ||
+        "Coleccionista";
+      const ensured = await supabase
+        .from("profiles")
+        .upsert({ id: state.user.id, display_name: displayName })
+        .select()
+        .maybeSingle();
+      data = ensured.data;
+      if (ensured.error) console.warn("profile ensure:", ensured.error.message);
+    }
+    state.profile = data;
+  } catch (err) {
+    console.warn("loadUser profile:", err.message);
   }
-  state.profile = data;
 }
 
 async function loadStickers() {
@@ -176,58 +235,128 @@ async function loadStickers() {
     state.stickers = mergeCatalogExtras([]);
     return;
   }
-  const { data } = await supabase.from("stickers").select("*").order("display_order");
-  state.stickers = mergeCatalogExtras(data || []);
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from("stickers").select("*").order("display_order"),
+      12000,
+      "Catálogo"
+    );
+    if (error) console.warn("loadStickers:", error.message);
+    state.stickers = mergeCatalogExtras(data || []);
+  } catch (err) {
+    console.warn("loadStickers:", err.message);
+    state.stickers = mergeCatalogExtras([]);
+  }
 }
 
-async function loadCollection() {
-  const local = loadLocalCollection();
-  const fromLocal = {};
-  for (const [id, row] of Object.entries(local)) {
-    fromLocal[parseInt(id, 10)] = normalizeCollectionRow(row);
-  }
+async function loadCollection(force = false) {
+  if (collectionLoadPromise && !force) return collectionLoadPromise;
 
-  if (state.user && supabase) {
+  collectionLoadPromise = (async () => {
+    const validIds = state.stickers.length ? new Set(state.stickers.map((s) => s.id)) : null;
+    const fromLocal = sanitizeLocalCollection(loadLocalCollection(), validIds);
+
+    if (state.user && supabase) {
+      try {
+        const { data, error } = await withTimeout(
+          supabase
+            .from("user_stickers")
+            .select("sticker_id, owned, duplicates")
+            .eq("user_id", state.user.id),
+          8000,
+          "Colección remota"
+        );
+        if (error) {
+          console.warn("loadCollection remote:", error.message);
+          state.collection = fromLocal;
+          return;
+        }
+        const fromRemote = {};
+        for (const row of data || []) {
+          if (validIds && !validIds.has(row.sticker_id)) continue;
+          fromRemote[row.sticker_id] = normalizeCollectionRow(row);
+        }
+        const ids = new Set([
+          ...Object.keys(fromLocal).map((id) => parseInt(id, 10)),
+          ...Object.keys(fromRemote).map((id) => parseInt(id, 10)),
+        ]);
+        const merged = {};
+        for (const id of ids) {
+          merged[id] = mergeCollectionRows(fromLocal[id], fromRemote[id]);
+        }
+        state.collection = merged;
+        saveLocalCollection(merged);
+        return;
+      } catch (err) {
+        console.warn("loadCollection remote:", err.message);
+        state.collection = fromLocal;
+        return;
+      }
+    }
+
+    state.collection = fromLocal;
+  })();
+
+  try {
+    await collectionLoadPromise;
+  } catch (err) {
+    console.warn("loadCollection:", err.message);
+    const validIds = state.stickers.length ? new Set(state.stickers.map((s) => s.id)) : null;
+    state.collection = sanitizeLocalCollection(loadLocalCollection(), validIds);
+  } finally {
+    collectionLoadPromise = null;
+  }
+}
+
+/** Tras login: fusiona dispositivo + nube una sola vez y sube el mejor resultado. */
+async function mergeCollectionOnLogin() {
+  if (!state.user || !supabase) return;
+  if (loginMergedForUserId === state.user.id) return;
+  if (loginMergePromise) return loginMergePromise;
+
+  loginMergePromise = (async () => {
+    const validIds = state.stickers.length ? new Set(state.stickers.map((s) => s.id)) : null;
+    const local = sanitizeLocalCollection(loadLocalCollection(), validIds);
     const { data, error } = await supabase
       .from("user_stickers")
       .select("sticker_id, owned, duplicates")
       .eq("user_id", state.user.id);
+
     if (error) {
-      console.warn("loadCollection remote:", error.message);
-      state.collection = fromLocal;
+      console.warn("mergeCollectionOnLogin:", error.message);
+      setAuthFlash(
+        "error",
+        `Entraste, pero no pudimos leer tu álbum en la nube (${error.message}). Se usa lo de este dispositivo.`
+      );
+      state.collection = local;
+      saveLocalCollection(local);
       return;
     }
-    const fromRemote = {};
-    for (const row of data || []) {
-      fromRemote[row.sticker_id] = normalizeCollectionRow(row);
-    }
-    const ids = new Set([
-      ...Object.keys(fromLocal).map((id) => parseInt(id, 10)),
-      ...Object.keys(fromRemote).map((id) => parseInt(id, 10)),
-    ]);
-    state.collection = {};
-    for (const id of ids) {
-      state.collection[id] = mergeCollectionRows(fromLocal[id], fromRemote[id]);
-    }
-    return;
-  }
 
-  state.collection = fromLocal;
-}
+    const { error: syncErr, merged } = await syncLocalToRemote(supabase, state.user.id, local, data || []);
+    state.collection = merged;
+    if (syncErr) {
+      console.warn("mergeCollectionOnLogin sync:", syncErr.message);
+      setAuthFlash(
+        "error",
+        `Entraste, pero no se guardó todo en la nube (${syncErr.message}). Tu álbum sigue en este dispositivo.`
+      );
+      return;
+    }
 
-async function syncCollectionAfterLogin() {
-  if (!state.user || !supabase) return;
-  const { error } = await syncCollectionToRemote(supabase, state.user.id, state.collection);
-  if (error) {
-    console.warn("syncCollectionAfterLogin:", error.message);
-    saveLocalCollection(state.collection);
+    const owned = Object.values(merged).filter((r) => totalCopies(r) > 0).length;
     setAuthFlash(
-      "error",
-      `Sesión OK, pero no se sincronizó todo a la nube (${error.message}). Tu álbum sigue guardado en este dispositivo.`
+      "success",
+      `Álbum sincronizado: ${owned} láminas (se combinaron este dispositivo y tu cuenta).`
     );
-    return;
+    loginMergedForUserId = state.user.id;
+  })();
+
+  try {
+    await loginMergePromise;
+  } finally {
+    loginMergePromise = null;
   }
-  saveLocalCollection(state.collection);
 }
 
 async function upsertSticker(stickerId, patch) {
@@ -1746,6 +1875,14 @@ function authFlashMessageHtml() {
   return msg(flash.message, flash.type === "error" ? "error" : "success");
 }
 
+function renderAuthModeBar(active) {
+  return `
+    <div class="auth-mode-bar" role="tablist" aria-label="Forma de entrar">
+      <button type="button" class="auth-mode-btn ${active === "magic" ? "active" : ""}" data-auth-mode="magic" aria-selected="${active === "magic"}">✉️ Por correo</button>
+      <button type="button" class="auth-mode-btn ${active === "password" ? "active" : ""}" data-auth-mode="password" aria-selected="${active === "password"}">🔑 Contraseña</button>
+    </div>`;
+}
+
 function viewAuthGate() {
   if (!supabaseConfigured) {
     shell(
@@ -1756,32 +1893,31 @@ function viewAuthGate() {
     );
     return;
   }
-  const devBootstrap = import.meta.env.VITE_DEV_AUTH_SECRET ? true : false;
+  const authMode = sessionStorage.getItem("authMode") === "password" ? "password" : "magic";
   shell(
     "Intercambiar láminas",
-    "Entra con tu correo y contraseña",
+    "Entra para explorar coleccionistas e intercambiar",
     `
     <div class="auth-card card">
       ${authFlashMessageHtml()}
-      ${msg("Tu álbum sigue en el dispositivo aunque entres con cuenta.", "info")}
-      <label>Correo</label>
-      <input type="email" id="auth-email" placeholder="tu@correo.com" autocomplete="email" value="" />
-      <label>Contraseña</label>
-      <input type="password" id="auth-password" placeholder="Mínimo 8 caracteres" autocomplete="current-password" />
-      <button class="btn btn-primary" id="btn-sign-in">Entrar</button>
-      <button class="btn btn-secondary" id="btn-sign-up">Crear cuenta</button>
-      ${
-        devBootstrap
-          ? `
-      <details class="auth-advanced">
-        <summary>Primera vez / restablecer clave</summary>
-        <p class="auth-email-hint">Pon la clave especial del proyecto y tu nueva contraseña (solo dev).</p>
-        <label>Clave especial</label>
-        <input type="password" id="auth-bootstrap-secret" autocomplete="off" />
-        <button class="btn btn-secondary" id="btn-bootstrap">Guardar contraseña</button>
-      </details>`
-          : ""
-      }
+      ${msg("Tu álbum sigue en este dispositivo.", "info")}
+      <label>Correo electrónico</label>
+      <input type="email" id="auth-email" placeholder="tu@correo.com" autocomplete="email" />
+      ${renderAuthModeBar(authMode)}
+      <div id="auth-panel-magic" class="${authMode === "magic" ? "" : "hidden"}">
+        <button class="btn btn-primary" id="btn-magic-link">Enviar enlace</button>
+        <p class="auth-email-hint">
+          Revisa tu correo → abre <strong>solo el último</strong> enlace → mismo navegador.
+        </p>
+      </div>
+      <div id="auth-panel-password" class="${authMode === "password" ? "" : "hidden"}">
+        <label>Contraseña</label>
+        <input type="password" id="auth-password" placeholder="Mínimo 8 caracteres" autocomplete="current-password" />
+        <button class="btn btn-primary" id="btn-sign-in">Entrar</button>
+        <p class="auth-email-hint">
+          ¿Entraste antes solo con magic link? Ve a <strong>Perfil → Crear contraseña</strong> (una vez) y luego usa Entrar aquí.
+        </p>
+      </div>
       <div class="auth-divider"><span>o sin cuenta</span></div>
       <button class="btn btn-primary flash-hub-main" id="btn-flash-gate">⚡ Intercambio flash</button>
       <button class="btn btn-ghost" id="btn-back-album">Volver al álbum</button>
@@ -1790,12 +1926,48 @@ function viewAuthGate() {
     true
   );
 
-  const getCreds = () => {
+  const getEmail = () => {
     const email = document.getElementById("auth-email").value.trim();
-    const password = document.getElementById("auth-password").value;
     if (!email) throw new Error("Escribe tu correo.");
+    return email;
+  };
+
+  const getCreds = () => {
+    const email = getEmail();
+    const password = document.getElementById("auth-password").value;
     if (!password || password.length < 8) throw new Error("La contraseña debe tener al menos 8 caracteres.");
     return { email, password };
+  };
+
+  $app.querySelectorAll("[data-auth-mode]").forEach((btn) => {
+    btn.onclick = () => {
+      sessionStorage.setItem("authMode", btn.dataset.authMode);
+      viewAuthGate();
+    };
+  });
+
+  document.getElementById("btn-magic-link").onclick = async () => {
+    try {
+      const email = getEmail();
+      const btn = document.getElementById("btn-magic-link");
+      rememberAuthReturnRoute("intercambiar");
+      btn.disabled = true;
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: authCallbackUrl(),
+          shouldCreateUser: true,
+        },
+      });
+      btn.disabled = false;
+      if (error) {
+        alert(humanizeAuthError(error.message));
+        return;
+      }
+      alert(`Te enviamos un enlace a ${email}. Ábrelo en este mismo navegador.`);
+    } catch (e) {
+      alert(e.message);
+    }
   };
 
   document.getElementById("btn-sign-in").onclick = async () => {
@@ -1806,10 +1978,7 @@ function viewAuthGate() {
       const { error } = await signInWithEmailPassword(email, password);
       btn.disabled = false;
       if (error) {
-        alert(
-          humanizeAuthError(error.message) +
-            "\n\nSi nunca pusiste contraseña, usa «Crear cuenta» o pide al dev que ejecute scripts/set-user-password.py"
-        );
+        alert(humanizeAuthError(error.message));
         return;
       }
       navigate("intercambiar");
@@ -1817,39 +1986,6 @@ function viewAuthGate() {
       alert(e.message);
     }
   };
-
-  document.getElementById("btn-sign-up").onclick = async () => {
-    try {
-      const { email, password } = getCreds();
-      const btn = document.getElementById("btn-sign-up");
-      btn.disabled = true;
-      const { error, needsConfirm } = await signUpWithEmailPassword(email, password);
-      btn.disabled = false;
-      if (error) {
-        alert(humanizeAuthError(error.message));
-        return;
-      }
-      if (needsConfirm) {
-        alert("Cuenta creada. Si te piden confirmar por correo, ábrelo y vuelve a Entrar.");
-      } else {
-        navigate("intercambiar");
-      }
-    } catch (e) {
-      alert(e.message);
-    }
-  };
-
-  document.getElementById("btn-bootstrap")?.addEventListener("click", async () => {
-    try {
-      const { email, password } = getCreds();
-      const secret = document.getElementById("auth-bootstrap-secret").value;
-      if (!secret) throw new Error("Escribe la clave especial.");
-      await api.bootstrapPassword({ secret, email, password });
-      alert("Contraseña guardada. Pulsa Entrar.");
-    } catch (e) {
-      alert(e.message);
-    }
-  });
 
   document.getElementById("btn-back-album").onclick = () => navigate("album");
   document.getElementById("btn-flash-gate")?.addEventListener("click", () => navigate("flash"));
@@ -2955,10 +3091,20 @@ async function viewProfile() {
     `
     <div class="card">
       <p><strong>${state.profile?.display_name || "Coleccionista"}</strong></p>
+      <p class="badge">${state.user?.email || ""}</p>
       <p class="badge">Radio: ${state.profile?.search_radius_km || 25} km</p>
       <button class="btn btn-secondary" id="edit-loc">Editar ubicación</button>
       <button class="btn btn-secondary" id="pwa-help">Instalar en iPhone</button>
       <button class="btn btn-secondary" id="logout">Cerrar sesión</button>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;font-size:1rem">Contraseña</h3>
+      <p class="auth-email-hint">Crea una contraseña para entrar sin magic link la próxima vez.</p>
+      <label>Nueva contraseña</label>
+      <input type="password" id="profile-new-password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" />
+      <label>Repetir contraseña</label>
+      <input type="password" id="profile-confirm-password" autocomplete="new-password" />
+      <button class="btn btn-primary" id="btn-save-password">Guardar contraseña</button>
     </div>
     <h3 style="font-size:1rem">Mis reseñas recibidas</h3>
     ${reviewsHtml}
@@ -2976,6 +3122,19 @@ async function viewProfile() {
     true
   );
   document.getElementById("edit-loc").onclick = () => navigate("onboarding");
+  document.getElementById("btn-save-password").onclick = async () => {
+    const pw = document.getElementById("profile-new-password").value;
+    const confirm = document.getElementById("profile-confirm-password").value;
+    if (pw.length < 8) return alert("La contraseña debe tener al menos 8 caracteres.");
+    if (pw !== confirm) return alert("Las contraseñas no coinciden.");
+    const { error } = await updateUserPassword(pw);
+    if (error) alert(humanizeAuthError(error.message));
+    else {
+      document.getElementById("profile-new-password").value = "";
+      document.getElementById("profile-confirm-password").value = "";
+      alert("Contraseña guardada. Ya puedes entrar con correo + contraseña en Intercambiar → 🔑 Contraseña.");
+    }
+  };
   document.getElementById("pwa-help").onclick = () =>
     document.getElementById("pwa-panel").classList.toggle("hidden");
   document.getElementById("logout").onclick = async () => {
@@ -3029,26 +3188,36 @@ async function viewUserPublic() {
 }
 
 async function render() {
-  const parsed = typeof state.route === "string" ? { route: state.route, id: state.params?.id } : parseHash();
-  if (parsed.route) {
-    state.route = parsed.route;
-    if (parsed.id) state.params.id = parsed.id;
-  }
+  if (renderInFlight) return renderInFlight;
+  renderInFlight = renderNow().finally(() => {
+    renderInFlight = null;
+  });
+  return renderInFlight;
+}
 
-  if (state.route !== "scan" && activeScanCleanup) {
-    activeScanCleanup();
-    activeScanCleanup = null;
-  }
+async function renderNow() {
+  try {
+    const parsed = typeof state.route === "string" ? { route: state.route, id: state.params?.id } : parseHash();
+    if (parsed.route) {
+      state.route = parsed.route;
+      if (parsed.id) state.params.id = parsed.id;
+    }
 
-  await loadUser();
-  await loadStickers();
+    if (state.route !== "scan" && activeScanCleanup) {
+      activeScanCleanup();
+      activeScanCleanup = null;
+    }
 
-  if (!state.stickers.length) {
-    shell("Mi álbum", "", msg("No hay catálogo cargado. Ejecuta el seed en Supabase (ver supabase/PROJECT.md).", "error"), true);
-    return;
-  }
+    await loadUser();
 
-  await loadCollection();
+    if (!state.stickers.length) {
+      await loadStickers();
+    }
+
+    if (!state.stickers.length) {
+      shell("Mi álbum", "", msg("No hay catálogo cargado. Ejecuta el seed en Supabase (ver supabase/PROJECT.md).", "error"), true);
+      return;
+    }
 
   if (state.route === "flash") {
     viewFlashTrade();
@@ -3120,41 +3289,66 @@ async function render() {
     default:
       viewAlbum();
   }
+  } catch (err) {
+    console.error("render:", err);
+    shell(
+      "Panini Intercambios",
+      "",
+      msg(`Algo falló al cargar la pantalla (${err.message}). Recarga la página; tu álbum sigue en el navegador.`, "error"),
+      true
+    );
+  }
 }
 
 async function init() {
   if (redirectLegacyAuthPort()) return;
 
-  if ("serviceWorker" in navigator) {
+  if (import.meta.env.DEV && "serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistrations().then((regs) => {
+      regs.forEach((r) => r.unregister());
+    });
+  } else if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }
+
+  let authJustCompleted = false;
   supabase?.auth.onAuthStateChange(async (event) => {
-    if (event === "TOKEN_REFRESHED") return;
+    if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") return;
+    if (!bootComplete) return;
     const hadUser = !!state.user;
     await loadUser();
     if (event === "SIGNED_IN" && !hadUser && state.user) {
-      await loadCollection();
-      await syncCollectionAfterLogin();
+      mergeCollectionOnLogin().catch((e) => console.warn("merge on sign-in:", e.message));
     }
     if (event === "SIGNED_OUT") {
       state.profile = null;
-      await loadCollection();
+      loginMergedForUserId = null;
+      await loadCollection(true);
     }
     await render();
   });
 
   if (supabase) {
-    const { error, justCompleted, session } = await completeAuthFromUrl();
+    const { error, justCompleted } = await completeAuthFromUrl();
+    authJustCompleted = justCompleted;
     if (error) setAuthFlash("error", `No se pudo iniciar sesión: ${error}`);
-    else if (justCompleted && session) {
-      setAuthFlash("success", "¡Listo! Entraste con tu cuenta. Tu álbum se mantiene en este dispositivo y se sincroniza.");
+    else if (justCompleted) {
+      setAuthFlash("success", "¡Listo! Combinando tu álbum de este dispositivo con tu cuenta…");
     }
   }
 
   await loadUser();
   await loadStickers();
-  await loadCollection();
-  if (state.user) await syncCollectionAfterLogin();
+  const validIds = state.stickers.length ? new Set(state.stickers.map((s) => s.id)) : null;
+  state.collection = sanitizeLocalCollection(loadLocalCollection(), validIds);
+  bootComplete = true;
+  const h = parseHash();
+  if (typeof h === "object") {
+    state.route = h.route;
+    if (h.id) state.params.id = h.id;
+  } else {
+    state.route = h;
+  }
   const savedTeam = sessionStorage.getItem("albumTeamIndex");
   if (savedTeam != null) state.albumTeamIndex = parseInt(savedTeam, 10) || 0;
   const savedSub = sessionStorage.getItem("albumSubPage");
@@ -3165,15 +3359,21 @@ async function init() {
   if (savedMode === "edit") state.albumMode = "edit";
   else state.albumMode = "view";
   state.albumTeamsMissingOnly = sessionStorage.getItem("albumTeamsMissingOnly") === "1";
-  const h = parseHash();
-  if (typeof h === "object") {
-    state.route = h.route;
-    if (h.id) state.params.id = h.id;
-  } else {
-    state.route = h;
-  }
   await render();
+  loadCollection(true)
+    .then(() => render())
+    .catch((e) => console.warn("collection sync:", e.message));
+  if (authJustCompleted && state.user) {
+    mergeCollectionOnLogin()
+      .then(() => render())
+      .catch((e) => console.warn("merge on login:", e.message));
+  }
 }
+
+init().catch((err) => {
+  console.error("init:", err);
+  showBootError(`No se pudo iniciar la app: ${err.message}`);
+});
 
 window.addEventListener("hashchange", () => {
   const h = parseHash();
@@ -3181,7 +3381,5 @@ window.addEventListener("hashchange", () => {
     state.route = h.route;
     state.params.id = h.id;
   } else state.route = h;
-  render();
+  render().catch((err) => console.error("hashchange render:", err));
 });
-
-init();

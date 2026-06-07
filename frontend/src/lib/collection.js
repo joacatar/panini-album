@@ -1,6 +1,23 @@
-import { mergeCollectionRows } from "./collectionCopies.js";
+import {
+  collectionFieldsForTotal,
+  mergeCollectionRows,
+  normalizeCollectionRow,
+  totalCopiesFromRecord,
+} from "./collectionCopies.js";
 
 const STORAGE_KEY = "panini_collection_v1";
+
+/** Ignora claves inválidas del localStorage (basura o ids NaN). */
+export function sanitizeLocalCollection(raw, validStickerIds = null) {
+  const out = {};
+  for (const [idStr, row] of Object.entries(raw || {})) {
+    const stickerId = parseInt(idStr, 10);
+    if (!Number.isFinite(stickerId) || stickerId <= 0) continue;
+    if (validStickerIds && !validStickerIds.has(stickerId)) continue;
+    out[stickerId] = normalizeCollectionRow(row);
+  }
+  return out;
+}
 
 export function loadLocalCollection() {
   try {
@@ -11,7 +28,13 @@ export function loadLocalCollection() {
 }
 
 export function saveLocalCollection(collection) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(collection));
+  const out = {};
+  for (const [id, row] of Object.entries(collection || {})) {
+    const stickerId = parseInt(id, 10);
+    if (!Number.isFinite(stickerId) || stickerId <= 0) continue;
+    out[stickerId] = normalizeCollectionRow(row);
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(out));
 }
 
 export function clearLocalCollection() {
