@@ -57,6 +57,7 @@ import {
   rememberAuthReturnRoute,
   setAuthFlash,
   signInWithEmailPassword,
+  signUpWithEmailPassword,
   updateUserPassword,
 } from "./lib/auth.js";
 import {
@@ -89,7 +90,7 @@ import {
   tradeItemsUserCanOffer,
   tradeTeamLabel,
 } from "./lib/flashTrade.js";
-import { escapeHtml as shellEscapeHtml, renderBottomNav } from "./lib/appShell.js";
+import { escapeHtml as shellEscapeHtml, renderBottomNav, renderWelcomeMessage } from "./lib/appShell.js";
 import { copyTextToClipboard } from "./lib/copyText.js";
 import {
   collectionFieldsForTotal,
@@ -109,7 +110,7 @@ let loginMergedForUserId = null;
 const SHOW_STICKER_NAMES = false;
 
 const AUTH_ROUTES = new Set([
-  "intercambiar",
+  "cuenta",
   "explore",
   "trades",
   "trade",
@@ -422,14 +423,21 @@ function shell(title, sub, body, showNav = true) {
             ${sub ? `<p class="sub">${sub}</p>` : ""}
           </div>
           ${
-            showProgress
-              ? `<div class="header-progress" aria-label="Progreso del álbum">
-                  <svg class="header-ring" viewBox="0 0 36 36">
-                    <circle class="header-ring-bg" cx="18" cy="18" r="15.5" />
-                    <circle class="header-ring-fill" cx="18" cy="18" r="15.5" pathLength="100"
-                      stroke-dasharray="${pct} 100" stroke-dashoffset="0" />
-                  </svg>
-                  <span class="header-pct">${pct}%</span>
+            showNav && (state.route !== "guia" || showProgress)
+              ? `<div class="header-aside">
+                  ${showNav && state.route !== "guia" ? `<a href="#guia" class="header-guia-link" title="Guía rápida">❓ Guía</a>` : ""}
+                  ${
+                    showProgress
+                      ? `<div class="header-progress" aria-label="Progreso del álbum">
+                          <svg class="header-ring" viewBox="0 0 36 36">
+                            <circle class="header-ring-bg" cx="18" cy="18" r="15.5" />
+                            <circle class="header-ring-fill" cx="18" cy="18" r="15.5" pathLength="100"
+                              stroke-dasharray="${pct} 100" stroke-dashoffset="0" />
+                          </svg>
+                          <span class="header-pct">${pct}%</span>
+                        </div>`
+                      : ""
+                  }
                 </div>`
               : ""
           }
@@ -755,6 +763,20 @@ function renderAlbumEditContent(team, sub) {
   return renderStickerGrid(pageStickers, "edit");
 }
 
+function albumNavigatePage(delta) {
+  const groups = groupStickersByTeam();
+  const team = groups[state.albumTeamIndex];
+  if (!team) return false;
+  const pages = albumPageNumbers(team);
+  const pos = pages.indexOf(state.albumSubPage);
+  const base = pos >= 0 ? pos : 0;
+  const nextPos = base + delta;
+  if (nextPos < 0 || nextPos >= pages.length) return false;
+  state.albumSubPage = pages[nextPos];
+  sessionStorage.setItem("albumSubPage", String(state.albumSubPage));
+  return true;
+}
+
 function albumNavigateTeam(delta) {
   const groups = groupStickersByTeam();
   const indices = filteredTeamIndices(groups, state.albumGroupFilter);
@@ -811,7 +833,7 @@ function albumModeHint(team) {
   if (state.albumMode === "edit") {
     const pages = albumPageNumbers(team);
     const range = pages.length > 1 ? ` · pág. ${state.albumSubPage}/${pages.length}` : "";
-    return `Editar${range} · toca el número o <strong>+</strong> / <strong>−</strong>`;
+    return `Editar${range} · toca <strong>+</strong>/<strong>−</strong> · desliza ↔ cambia de página`;
   }
   return "Ver todo · faltantes arriba en cada página · desliza ↔ para otro equipo";
 }
@@ -868,12 +890,26 @@ function bindStickerRows(rerender) {
 }
 
 function albumSwipeNext() {
+  const groups = groupStickersByTeam();
+  const team = groups[state.albumTeamIndex];
+  const multiPage = team && albumPageNumbers(team).length > 1;
+  if (state.albumMode === "edit" && multiPage && albumNavigatePage(1)) {
+    viewAlbum({ preserveScroll: true });
+    return;
+  }
   if (albumNavigateTeam(1)) {
     viewAlbum({ scrollToSheet: true, scrollTeamChip: true });
   }
 }
 
 function albumSwipePrev() {
+  const groups = groupStickersByTeam();
+  const team = groups[state.albumTeamIndex];
+  const multiPage = team && albumPageNumbers(team).length > 1;
+  if (state.albumMode === "edit" && multiPage && albumNavigatePage(-1)) {
+    viewAlbum({ preserveScroll: true });
+    return;
+  }
   if (albumNavigateTeam(-1)) {
     viewAlbum({ scrollToSheet: true, scrollTeamChip: true });
   }
@@ -957,6 +993,7 @@ function renderAlbumPageBody() {
       <button type="button" class="btn btn-primary btn-compact" id="btn-flash">⚡ Flash</button>
       <button type="button" class="btn btn-secondary btn-compact" id="btn-import-list">Pegar lista</button>
     </div>
+    <p class="album-guia-hint"><a href="#guia" class="guia-link">¿Primera vez aquí? Guía rápida</a></p>
     ${renderAlbumFilterToggle()}
     ${renderGroupFilterBar(groups, state.albumGroupFilter, {
       onlyMissing: state.albumTeamsMissingOnly,
@@ -1488,6 +1525,59 @@ function renderImportPreviewHtml(preview) {
     </div>`;
 }
 
+function viewGuia() {
+  shell(
+    "Guía rápida",
+    "Lo esencial para empezar",
+    `
+    <div class="guia-stack">
+      <section class="card guia-section">
+        <h2>📖 Tu álbum (sin cuenta)</h2>
+        <p>Marca láminas en <strong>✏️ Editar</strong>. Todo se guarda en este dispositivo.</p>
+        <p class="guia-tip">FWC tiene <strong>5 páginas</strong> — usa las pestañas o desliza ↔ para cambiar de página (no de equipo).</p>
+      </section>
+      <section class="card guia-section guia-section--highlight">
+        <h2>📋 Pegar lista (importante)</h2>
+        <ol class="guia-steps">
+          <li>Álbum → <strong>Pegar lista</strong></li>
+          <li>Elige modo: <strong>Me faltan</strong> · <strong>Las tengo</strong> · <strong>Repetidas</strong></li>
+          <li>Pega texto de WhatsApp o la app Panini</li>
+          <li><strong>Vista previa</strong> → <strong>Aplicar al álbum</strong></li>
+        </ol>
+        <p class="guia-examples">Ejemplos: <code>MEX 15, 19</code> · <code>FWC 3, 7</code> · <code>MEX: 4(1x) 10(3x)</code> · <code>CC 1-12</code></p>
+        <button type="button" class="btn btn-primary" id="guia-go-import">Ir a pegar lista</button>
+      </section>
+      <section class="card guia-section guia-section--highlight">
+        <h2>⚡ Intercambio flash</h2>
+        <p>Arma un trato pegando lo que cada uno tiene de más y de menos. <strong>No necesitas cuenta.</strong></p>
+        <ol class="guia-steps">
+          <li>Pega sus <strong>repetidas</strong></li>
+          <li>Pega lo que <strong>te faltan</strong> de ellos</li>
+          <li>Revisa el trato sugerido y compártelo por WhatsApp</li>
+        </ol>
+        <button type="button" class="btn btn-primary" id="guia-go-flash">Probar flash</button>
+      </section>
+      <section class="card guia-section">
+        <h2>🤝 Cuenta y explorar (opcional)</h2>
+        <p>Solo si quieres ver coleccionistas, enviar solicitudes o guardar el álbum en la nube.</p>
+        <ul class="guia-list">
+          <li><strong>Cuenta</strong> — quinta pestaña abajo → entrar o registrarse</li>
+          <li><strong>Cambiar</strong> — intercambio flash sin cuenta</li>
+          <li><strong>Ubicación</strong> — solo para Explorar cerca (puedes omitirla al inicio)</li>
+        </ul>
+        <button type="button" class="btn btn-secondary" id="guia-go-cuenta">Ir a Cuenta</button>
+      </section>
+    </div>
+    <button type="button" class="btn btn-ghost guia-back" id="guia-back">← Volver al álbum</button>
+    `,
+    true
+  );
+  document.getElementById("guia-go-import")?.addEventListener("click", () => navigate("import"));
+  document.getElementById("guia-go-flash")?.addEventListener("click", () => navigate("flash"));
+  document.getElementById("guia-go-cuenta")?.addEventListener("click", () => navigate("cuenta"));
+  document.getElementById("guia-back")?.addEventListener("click", () => navigate("album"));
+}
+
 function viewImport() {
   const defaultText = sessionStorage.getItem("importListDraft") || "";
   const mode = sessionStorage.getItem("importListMode") || detectImportMode(defaultText);
@@ -1875,57 +1965,23 @@ function authFlashMessageHtml() {
   return msg(flash.message, flash.type === "error" ? "error" : "success");
 }
 
+function renderAuthIntentBar(active) {
+  return `
+    <div class="auth-mode-bar" role="tablist" aria-label="Cuenta">
+      <button type="button" class="auth-mode-btn ${active === "signin" ? "active" : ""}" data-auth-intent="signin" aria-selected="${active === "signin"}">Entrar</button>
+      <button type="button" class="auth-mode-btn ${active === "signup" ? "active" : ""}" data-auth-intent="signup" aria-selected="${active === "signup"}">Registrarse</button>
+    </div>`;
+}
+
 function renderAuthModeBar(active) {
   return `
-    <div class="auth-mode-bar" role="tablist" aria-label="Forma de entrar">
+    <div class="auth-mode-bar auth-mode-bar--nested" role="tablist" aria-label="Forma de entrar">
       <button type="button" class="auth-mode-btn ${active === "magic" ? "active" : ""}" data-auth-mode="magic" aria-selected="${active === "magic"}">✉️ Por correo</button>
       <button type="button" class="auth-mode-btn ${active === "password" ? "active" : ""}" data-auth-mode="password" aria-selected="${active === "password"}">🔑 Contraseña</button>
     </div>`;
 }
 
-function viewAuthGate() {
-  if (!supabaseConfigured) {
-    shell(
-      "Panini Intercambios",
-      "Mundial FIFA 2026",
-      msg("Configura VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en frontend/.env.", "error"),
-      true
-    );
-    return;
-  }
-  const authMode = sessionStorage.getItem("authMode") === "password" ? "password" : "magic";
-  shell(
-    "Intercambiar láminas",
-    "Entra para explorar coleccionistas e intercambiar",
-    `
-    <div class="auth-card card">
-      ${authFlashMessageHtml()}
-      ${msg("Tu álbum sigue en este dispositivo.", "info")}
-      <label>Correo electrónico</label>
-      <input type="email" id="auth-email" placeholder="tu@correo.com" autocomplete="email" />
-      ${renderAuthModeBar(authMode)}
-      <div id="auth-panel-magic" class="${authMode === "magic" ? "" : "hidden"}">
-        <button class="btn btn-primary" id="btn-magic-link">Enviar enlace</button>
-        <p class="auth-email-hint">
-          Revisa tu correo → abre <strong>solo el último</strong> enlace → mismo navegador.
-        </p>
-      </div>
-      <div id="auth-panel-password" class="${authMode === "password" ? "" : "hidden"}">
-        <label>Contraseña</label>
-        <input type="password" id="auth-password" placeholder="Mínimo 8 caracteres" autocomplete="current-password" />
-        <button class="btn btn-primary" id="btn-sign-in">Entrar</button>
-        <p class="auth-email-hint">
-          ¿Entraste antes solo con magic link? Ve a <strong>Perfil → Crear contraseña</strong> (una vez) y luego usa Entrar aquí.
-        </p>
-      </div>
-      <div class="auth-divider"><span>o sin cuenta</span></div>
-      <button class="btn btn-primary flash-hub-main" id="btn-flash-gate">⚡ Intercambio flash</button>
-      <button class="btn btn-ghost" id="btn-back-album">Volver al álbum</button>
-    </div>
-    `,
-    true
-  );
-
+function bindCuentaAuthForm() {
   const getEmail = () => {
     const email = document.getElementById("auth-email").value.trim();
     if (!email) throw new Error("Escribe tu correo.");
@@ -1939,18 +1995,28 @@ function viewAuthGate() {
     return { email, password };
   };
 
-  $app.querySelectorAll("[data-auth-mode]").forEach((btn) => {
+  const authIntent = sessionStorage.getItem("authIntent") === "signup" ? "signup" : "signin";
+  const authMode = sessionStorage.getItem("authMode") === "password" ? "password" : "magic";
+
+  $app.querySelectorAll("[data-auth-intent]").forEach((btn) => {
     btn.onclick = () => {
-      sessionStorage.setItem("authMode", btn.dataset.authMode);
-      viewAuthGate();
+      sessionStorage.setItem("authIntent", btn.dataset.authIntent);
+      viewCuenta();
     };
   });
 
-  document.getElementById("btn-magic-link").onclick = async () => {
+  $app.querySelectorAll("[data-auth-mode]").forEach((btn) => {
+    btn.onclick = () => {
+      sessionStorage.setItem("authMode", btn.dataset.authMode);
+      viewCuenta();
+    };
+  });
+
+  document.getElementById("btn-magic-link")?.addEventListener("click", async () => {
     try {
       const email = getEmail();
       const btn = document.getElementById("btn-magic-link");
-      rememberAuthReturnRoute("intercambiar");
+      rememberAuthReturnRoute("cuenta");
       btn.disabled = true;
       const { error } = await supabase.auth.signInWithOtp({
         email,
@@ -1968,9 +2034,9 @@ function viewAuthGate() {
     } catch (e) {
       alert(e.message);
     }
-  };
+  });
 
-  document.getElementById("btn-sign-in").onclick = async () => {
+  document.getElementById("btn-sign-in")?.addEventListener("click", async () => {
     try {
       const { email, password } = getCreds();
       const btn = document.getElementById("btn-sign-in");
@@ -1981,14 +2047,184 @@ function viewAuthGate() {
         alert(humanizeAuthError(error.message));
         return;
       }
-      navigate("intercambiar");
+      navigate(state.returnAfterAuth || "cuenta");
     } catch (e) {
       alert(e.message);
     }
-  };
+  });
 
-  document.getElementById("btn-back-album").onclick = () => navigate("album");
-  document.getElementById("btn-flash-gate")?.addEventListener("click", () => navigate("flash"));
+  document.getElementById("btn-sign-up")?.addEventListener("click", async () => {
+    try {
+      const { email, password } = getCreds();
+      const btn = document.getElementById("btn-sign-up");
+      btn.disabled = true;
+      const { error, needsConfirm } = await signUpWithEmailPassword(email, password);
+      btn.disabled = false;
+      if (error) {
+        alert(humanizeAuthError(error.message));
+        return;
+      }
+      if (needsConfirm) {
+        alert(`Cuenta creada. Revisa ${email} y confirma el enlace para entrar.`);
+        sessionStorage.setItem("authIntent", "signin");
+        viewCuenta();
+        return;
+      }
+      navigate("cuenta");
+    } catch (e) {
+      alert(e.message);
+    }
+  });
+}
+
+function viewCuenta() {
+  if (state.user) {
+    viewCuentaHub();
+    return;
+  }
+
+  if (!supabaseConfigured) {
+    shell(
+      "Cuenta",
+      "Mundial FIFA 2026",
+      `${renderWelcomeMessage()}${msg("Configura VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en frontend/.env.", "error")}`,
+      true
+    );
+    return;
+  }
+
+  const authIntent = sessionStorage.getItem("authIntent") === "signup" ? "signup" : "signin";
+  const authMode = sessionStorage.getItem("authMode") === "password" ? "password" : "magic";
+
+  const signInPanel =
+    authIntent === "signin"
+      ? `
+      ${renderAuthModeBar(authMode)}
+      <div id="auth-panel-magic" class="${authMode === "magic" ? "" : "hidden"}">
+        <button class="btn btn-primary" id="btn-magic-link">Enviar enlace</button>
+        <p class="auth-email-hint">
+          Revisa tu correo → abre <strong>solo el último</strong> enlace → mismo navegador.
+        </p>
+      </div>
+      <div id="auth-panel-password" class="${authMode === "password" ? "" : "hidden"}">
+        <label>Contraseña</label>
+        <input type="password" id="auth-password" placeholder="Mínimo 8 caracteres" autocomplete="current-password" />
+        <button class="btn btn-primary" id="btn-sign-in">Entrar</button>
+        <p class="auth-email-hint">
+          ¿Entraste antes solo con magic link? Ve a <strong>Perfil → Crear contraseña</strong> (una vez) y luego usa Entrar aquí.
+        </p>
+      </div>`
+      : `
+      <label>Contraseña</label>
+      <input type="password" id="auth-password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" />
+      <button class="btn btn-primary" id="btn-sign-up">Crear cuenta</button>
+      <p class="auth-email-hint">Te enviaremos un correo para confirmar la cuenta.</p>`;
+
+  shell(
+    "Cuenta",
+    "Opcional — para nube y explorar cerca",
+    `
+    ${renderWelcomeMessage()}
+    <div class="auth-card card">
+      ${authFlashMessageHtml()}
+      ${renderAuthIntentBar(authIntent)}
+      <label>Correo electrónico</label>
+      <input type="email" id="auth-email" placeholder="tu@correo.com" autocomplete="email" />
+      ${signInPanel}
+      <button class="btn btn-ghost" id="btn-back-album">Volver al álbum</button>
+    </div>
+    `,
+    true
+  );
+
+  bindCuentaAuthForm();
+  document.getElementById("btn-back-album")?.addEventListener("click", () => navigate("album"));
+}
+
+function viewCambiarLanding() {
+  const st = stats();
+  shell(
+    "Cambiar",
+    "Intercambio flash · sin cuenta",
+    `
+    <div class="hub-hero card">
+      <div class="hub-hero-stat">
+        <span class="hub-hero-value">${st.dupCount}</span>
+        <span class="hub-hero-label">repetidas</span>
+      </div>
+      <div class="hub-hero-stat">
+        <span class="hub-hero-value">${st.missing}</span>
+        <span class="hub-hero-label">faltan</span>
+      </div>
+    </div>
+    <div class="card flash-hub-card">
+      <p class="flash-hub-lead">Pega lo que cada uno tiene de más y de menos. La app arma el trato y lo compartes por WhatsApp.</p>
+      <button type="button" class="btn btn-primary flash-hub-main" id="go-flash">⚡ Empezar intercambio flash</button>
+    </div>
+    <p class="auth-email-hint">¿Quieres ver gente cerca o guardar en la nube? Ve a la pestaña <strong>Cuenta</strong>. · <a href="#guia" class="guia-link">Guía</a></p>
+    `,
+    true
+  );
+  document.getElementById("go-flash")?.addEventListener("click", () => navigate("flash"));
+}
+
+function viewCuentaHub() {
+  const st = stats();
+  const location = state.profile?.city
+    ? `${state.profile.city} · ${state.profile.search_radius_km || 25} km`
+    : "Configura tu zona";
+
+  shell(
+    "Cuenta",
+    location,
+    `
+    ${authFlashMessageHtml()}
+    <div class="hub-hero card">
+      <div class="hub-hero-stat">
+        <span class="hub-hero-value">${st.dupCount}</span>
+        <span class="hub-hero-label">repetidas</span>
+      </div>
+      <div class="hub-hero-stat">
+        <span class="hub-hero-value">${st.missing}</span>
+        <span class="hub-hero-label">faltan</span>
+      </div>
+    </div>
+    <div class="hub-grid">
+      <button type="button" class="hub-tile" id="go-explore">
+        <span class="hub-tile-icon">🔍</span>
+        <span class="hub-tile-title">Explorar</span>
+        <span class="hub-tile-desc">Coleccionistas cerca</span>
+      </button>
+      <button type="button" class="hub-tile" id="go-trades">
+        <span class="hub-tile-icon">📬</span>
+        <span class="hub-tile-title">Solicitudes</span>
+        <span class="hub-tile-desc">Tus intercambios</span>
+      </button>
+      <button type="button" class="hub-tile" id="go-profile">
+        <span class="hub-tile-icon">📍</span>
+        <span class="hub-tile-title">Perfil</span>
+        <span class="hub-tile-desc">${state.profile?.profile_complete ? "Ciudad y radio" : "Ubicación (opcional)"}</span>
+      </button>
+      <button type="button" class="hub-tile" id="go-guia">
+        <span class="hub-tile-icon">❓</span>
+        <span class="hub-tile-title">Guía</span>
+        <span class="hub-tile-desc">Pegar listas y flash</span>
+      </button>
+    </div>
+    <button type="button" class="btn btn-ghost" id="logout">Cerrar sesión</button>
+    `,
+    true
+  );
+  document.getElementById("go-explore")?.addEventListener("click", () => navigate("explore"));
+  document.getElementById("go-trades")?.addEventListener("click", () => navigate("trades"));
+  document.getElementById("go-profile")?.addEventListener("click", () => navigate("profile"));
+  document.getElementById("go-guia")?.addEventListener("click", () => navigate("guia"));
+  document.getElementById("logout")?.addEventListener("click", async () => {
+    await supabase.auth.signOut();
+    state.user = null;
+    state.profile = null;
+    navigate("album");
+  });
 }
 
 function renderFlashSteps(current) {
@@ -2217,10 +2453,7 @@ function viewFlashTrade() {
       saveFlashSession({ dupsText, partnerName, step: 2 });
       viewFlashTrade();
     });
-    document.getElementById("flash-back-hub")?.addEventListener("click", () => {
-      if (state.user) navigate("intercambiar");
-      else navigate("album");
-    });
+    document.getElementById("flash-back-hub")?.addEventListener("click", () => navigate("intercambiar"));
     document.getElementById("flash-share-mine-link")?.addEventListener("click", (e) => {
       e.preventDefault();
       navigate("duplicates");
@@ -2555,72 +2788,14 @@ function viewFlashTrade() {
   });
 }
 
-function viewIntercambiarHub() {
-  const st = stats();
-  const location = state.profile?.city
-    ? `${state.profile.city} · ${state.profile.search_radius_km || 25} km`
-    : "Configura tu zona";
-
-  shell(
-    "Intercambiar",
-    location,
-    `
-    ${authFlashMessageHtml()}
-    <div class="hub-hero card">
-      <div class="hub-hero-stat">
-        <span class="hub-hero-value">${st.dupCount}</span>
-        <span class="hub-hero-label">repetidas</span>
-      </div>
-      <div class="hub-hero-stat">
-        <span class="hub-hero-value">${st.missing}</span>
-        <span class="hub-hero-label">faltan</span>
-      </div>
-    </div>
-    <div class="hub-grid">
-      <button type="button" class="hub-tile hub-tile--flash" id="go-flash">
-        <span class="hub-tile-icon">⚡</span>
-        <span class="hub-tile-title">Intercambio flash</span>
-        <span class="hub-tile-desc">Pega listas y arma el trato</span>
-      </button>
-      <button type="button" class="hub-tile" id="go-explore">
-        <span class="hub-tile-icon">🔍</span>
-        <span class="hub-tile-title">Explorar</span>
-        <span class="hub-tile-desc">Coleccionistas cerca</span>
-      </button>
-      <button type="button" class="hub-tile" id="go-trades">
-        <span class="hub-tile-icon">📬</span>
-        <span class="hub-tile-title">Solicitudes</span>
-        <span class="hub-tile-desc">Tus intercambios</span>
-      </button>
-      <button type="button" class="hub-tile" id="go-profile">
-        <span class="hub-tile-icon">📍</span>
-        <span class="hub-tile-title">Perfil</span>
-        <span class="hub-tile-desc">Ciudad y radio</span>
-      </button>
-    </div>
-    <button type="button" class="btn btn-ghost" id="logout">Cerrar sesión</button>
-    `,
-    true
-  );
-  document.getElementById("go-flash").onclick = () => navigate("flash");
-  document.getElementById("go-explore").onclick = () => navigate("explore");
-  document.getElementById("go-trades").onclick = () => navigate("trades");
-  document.getElementById("go-profile").onclick = () => navigate("profile");
-  document.getElementById("logout").onclick = async () => {
-    await supabase.auth.signOut();
-    state.user = null;
-    state.profile = null;
-    navigate("album");
-  };
-}
-
 function viewOnboarding() {
   shell(
     "Tu ubicación",
-    "Para encontrar coleccionistas cerca",
+    "Opcional — para Explorar coleccionistas cerca",
     `
     ${authFlashMessageHtml()}
     <div class="card">
+      <p class="auth-email-hint">Puedes omitir esto y usar flash o pegar listas sin ubicación.</p>
       <label>Nombre para mostrar</label>
       <input id="display_name" value="${state.profile?.display_name || ""}" />
       <label>Ciudad</label>
@@ -2636,6 +2811,7 @@ function viewOnboarding() {
       </select>
       <button class="btn btn-secondary" id="btn-geo">Usar mi ubicación (GPS)</button>
       <button class="btn btn-primary" id="btn-save-loc">Guardar y continuar</button>
+      <button class="btn btn-ghost" id="btn-skip-loc">Omitir por ahora</button>
     </div>
     `,
     false
@@ -2670,8 +2846,9 @@ function viewOnboarding() {
       .eq("id", state.user.id);
     if (error) return alert(error.message);
     await loadUser();
-    navigate("intercambiar");
+    navigate("cuenta");
   };
+  document.getElementById("btn-skip-loc").onclick = () => navigate("cuenta");
 }
 
 function viewAlbum(options = {}) {
@@ -2885,6 +3062,24 @@ function renderMatchCard(m) {
 }
 
 async function viewExplore() {
+  if (!state.profile?.profile_complete) {
+    shell(
+      "Explorar",
+      "Necesitas ubicación",
+      `
+      <div class="card">
+        <p>Para ver coleccionistas cerca indica ciudad y país (o GPS).</p>
+        <p class="auth-email-hint">Flash y pegar listas funcionan sin ubicación.</p>
+        <button type="button" class="btn btn-primary" id="explore-setup-loc">Configurar ubicación</button>
+        <button type="button" class="btn btn-ghost" id="explore-back">Volver</button>
+      </div>
+      `,
+      true
+    );
+    document.getElementById("explore-setup-loc").onclick = () => navigate("onboarding");
+    document.getElementById("explore-back").onclick = () => navigate("cuenta");
+    return;
+  }
   shell("Explorar", "Cargando coincidencias…", "", true);
   const filter = state.params.filter || "cerca";
   try {
@@ -3225,26 +3420,19 @@ async function renderNow() {
   }
 
   if (state.route === "intercambiar") {
-    if (!state.user) {
-      viewAuthGate();
-      return;
-    }
-    if (!state.profile?.profile_complete) {
-      viewOnboarding();
-      return;
-    }
-    viewIntercambiarHub();
+    viewCambiarLanding();
     return;
   }
 
-  if (AUTH_ROUTES.has(state.route) && state.route !== "intercambiar") {
+  if (state.route === "cuenta") {
+    viewCuenta();
+    return;
+  }
+
+  if (AUTH_ROUTES.has(state.route)) {
     if (!state.user) {
       state.returnAfterAuth = state.route;
-      viewAuthGate();
-      return;
-    }
-    if (!state.profile?.profile_complete && state.route !== "onboarding") {
-      viewOnboarding();
+      navigate("cuenta");
       return;
     }
   }
@@ -3264,6 +3452,9 @@ async function renderNow() {
       break;
     case "import":
       viewImport();
+      break;
+    case "guia":
+      viewGuia();
       break;
     case "scan":
       viewScan();
@@ -3352,7 +3543,10 @@ async function init() {
   const savedTeam = sessionStorage.getItem("albumTeamIndex");
   if (savedTeam != null) state.albumTeamIndex = parseInt(savedTeam, 10) || 0;
   const savedSub = sessionStorage.getItem("albumSubPage");
-  if (savedSub != null) state.albumSubPage = parseInt(savedSub, 10) === 2 ? 2 : 1;
+  if (savedSub != null) {
+    const n = parseInt(savedSub, 10);
+    if (Number.isFinite(n) && n >= 1) state.albumSubPage = n;
+  }
   const savedFilter = sessionStorage.getItem("albumGroupFilter");
   if (savedFilter) state.albumGroupFilter = savedFilter;
   const savedMode = sessionStorage.getItem("albumMode");

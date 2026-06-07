@@ -17,15 +17,15 @@ export function authCallbackUrl() {
   return `${window.location.origin}${path}`;
 }
 
-export function rememberAuthReturnRoute(route = "intercambiar") {
-  sessionStorage.setItem(RETURN_ROUTE_KEY, route || "intercambiar");
+export function rememberAuthReturnRoute(route = "cuenta") {
+  sessionStorage.setItem(RETURN_ROUTE_KEY, route || "cuenta");
 }
 
-export function peekAuthReturnRoute(defaultRoute = "intercambiar") {
+export function peekAuthReturnRoute(defaultRoute = "cuenta") {
   return sessionStorage.getItem(RETURN_ROUTE_KEY) || defaultRoute;
 }
 
-export function consumeAuthReturnRoute(defaultRoute = "intercambiar") {
+export function consumeAuthReturnRoute(defaultRoute = "cuenta") {
   const route = peekAuthReturnRoute(defaultRoute);
   sessionStorage.removeItem(RETURN_ROUTE_KEY);
   return route;
@@ -123,7 +123,7 @@ export function cleanAuthParamsFromUrl(returnRoute) {
     url.searchParams.delete(key);
   }
 
-  let hashRoute = returnRoute || peekAuthReturnRoute("intercambiar");
+  let hashRoute = returnRoute || peekAuthReturnRoute("cuenta");
   if (url.hash && !hasAuthTokensInHash(url.hash)) {
     const h = url.hash.replace(/^#/, "");
     const [maybeRoute] = h.split(/[&?]/);
@@ -170,7 +170,7 @@ export async function completeAuthFromUrl() {
   const errorDesc = authErrorFromUrl(url);
 
   if (errorDesc) {
-    cleanAuthParamsFromUrl(peekAuthReturnRoute("intercambiar"));
+    cleanAuthParamsFromUrl(peekAuthReturnRoute("cuenta"));
     return { session: null, error: humanizeAuthError(decodeAuthError(errorDesc)), justCompleted: false };
   }
 
@@ -181,7 +181,7 @@ export async function completeAuthFromUrl() {
       token_hash: tokenHash,
       type: otpType,
     });
-    cleanAuthParamsFromUrl(consumeAuthReturnRoute("intercambiar"));
+    cleanAuthParamsFromUrl(consumeAuthReturnRoute("cuenta"));
     if (error) {
       return { session: null, error: humanizeAuthError(error.message), justCompleted: false };
     }
@@ -192,16 +192,16 @@ export async function completeAuthFromUrl() {
   if (code) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
-      cleanAuthParamsFromUrl(peekAuthReturnRoute("intercambiar"));
+      cleanAuthParamsFromUrl(peekAuthReturnRoute("cuenta"));
       return { session: null, error: humanizeAuthError(error.message), justCompleted: false };
     }
-    cleanAuthParamsFromUrl(consumeAuthReturnRoute("intercambiar"));
+    cleanAuthParamsFromUrl(consumeAuthReturnRoute("cuenta"));
     return { session: data.session, error: null, justCompleted: true };
   }
 
   if (hasAuthTokensInHash(url.hash)) {
     const { data, error } = await supabase.auth.getSession();
-    cleanAuthParamsFromUrl(consumeAuthReturnRoute("intercambiar"));
+    cleanAuthParamsFromUrl(consumeAuthReturnRoute("cuenta"));
     if (error) {
       return { session: null, error: humanizeAuthError(error.message), justCompleted: false };
     }
