@@ -87,15 +87,36 @@ python3 backend/scripts/seed_stickers.py
 
 Luego aplica el SQL generado en `supabase/seed/panini_2026_full.sql`.
 
-## Despliegue (resumen)
+## Colección sin cuenta
 
-| Componente | Sugerencia |
-|------------|------------|
-| Supabase | Ya hospedado |
-| API | Render / Railway / Fly.io |
-| PWA | Vercel / Netlify (`npm run build`) |
+Sin iniciar sesión, tu álbum se guarda en el **navegador** (`localStorage`, clave `panini_collection_v1`). No se pierde al recargar la página en el mismo dispositivo/navegador.
 
-Usa HTTPS en producción para PWA y OAuth.
+Si luego entras con Google o correo, la app **fusiona** lo local con tu cuenta en Supabase y limpia el almacenamiento local.
+
+## Despliegue
+
+| Componente | Dónde | URL |
+|------------|-------|-----|
+| Base de datos + Auth | **Supabase** (ya en la nube) | `https://TU_PROYECTO.supabase.co` |
+| Frontend PWA | **Vercel** o Netlify | Sí, te dan link `*.vercel.app` |
+| API Python | **Cloud Run**, Railway o Render | Sí, cada uno da URL pública |
+
+**Vercel no ejecuta Python/FastAPI.** Necesitas dos servicios:
+
+1. **Frontend** → Vercel  
+   - Root: `frontend`  
+   - Build: `npm run build`  
+   - Output: `dist`  
+   - Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL=https://TU-API.run.app`
+
+2. **Backend** → Google Cloud Run (o Railway)  
+   - Dockerfile/uvicorn en `backend`  
+   - Env: `SUPABASE_*`, `CORS_ORIGINS=https://tu-app.vercel.app`  
+   - Cloud Run te da una URL tipo `https://panini-api-xxxxx.run.app`
+
+3. **Supabase Auth** → añade la URL de Vercel en Redirect URLs del dashboard.
+
+Usa HTTPS en producción (obligatorio para PWA y OAuth).
 
 ## Aviso legal
 

@@ -1,12 +1,21 @@
 import { createClient } from "@supabase/supabase-js";
 
-const url = import.meta.env.VITE_SUPABASE_URL;
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const env = import.meta.env ?? {};
+const url = env.VITE_SUPABASE_URL;
+const key = env.VITE_SUPABASE_ANON_KEY;
 
 export const supabaseConfigured = Boolean(url && key);
 
 export const supabase = supabaseConfigured
-  ? createClient(url, key)
+  ? createClient(url, key, {
+      auth: {
+        // SPA sin servidor: implicit encaja mejor con magic links por defecto de Supabase
+        flowType: "implicit",
+        detectSessionInUrl: true,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
   : null;
 
 export async function getSession() {
